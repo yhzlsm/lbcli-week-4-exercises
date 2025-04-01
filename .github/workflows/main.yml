@@ -1,0 +1,105 @@
+name: Run Setup Script
+
+on:
+  push:
+    branches:
+      - main  # Trigger on pushes to the main branch
+
+jobs:
+  bitcoin-setup:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu environment
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Check out the repository code
+
+      - name: Cache Bitcoin Core
+        id: cache-bitcoin
+        uses: actions/cache@v3
+        with:
+          path: |
+            bitcoin-28.0
+            bitcoin-28.0-x86_64-linux-gnu.tar.gz
+          key: bitcoin-core-28.0
+          
+      - name: Setup Bitcoin Core
+        run: |
+          if [ "${{ steps.cache-bitcoin.outputs.cache-hit }}" != 'true' ]; then
+            wget https://bitcoincore.org/bin/bitcoin-core-28.0/bitcoin-28.0-x86_64-linux-gnu.tar.gz
+            tar -xzvf bitcoin-28.0-x86_64-linux-gnu.tar.gz
+          fi
+          sudo bash .github/setup.sh
+
+      - name: Start bitcoind in regtest mode
+        run: |
+          bitcoind -regtest -daemon
+          echo "Waiting for bitcoind to be ready..."
+
+          # Wait for bitcoind to start (max 30s)
+          for i in {1..30}; do
+            if bitcoin-cli -regtest getblockchaininfo > /dev/null 2>&1; then
+              echo "✅ bitcoind is ready!"
+              break
+            fi
+            echo "Still waiting for bitcoind..."
+            sleep 1
+          done
+
+      - name: 01.sh - Verify Wallet Creation
+        run: |
+            chmod +x submission/01.sh
+            WALLET=$(submission/01.sh)
+            if [[ "$WALLET" == *"btrustwallet"* ]]; then
+              echo "✅ Success: Wallet creation passed!"
+            else
+              echo "❌ Error: Wallet creation failed!"
+              exit 1
+            fi
+
+      - name: 02.sh - Verify Raw Locked Transaction Generation
+        run: |
+          chmod +x submission/02.sh
+          TRANSACTION=$(submission/02.sh)
+          EXPECTED_OUTPUT=0200000002160ee5dd146316bb3400ede0d4ad512ab9c1ede486ab5a119a2ee9d4379fc1230000000000fdffffff160ee5dd146316bb3400ede0d4ad512ab9c1ede486ab5a119a2ee9d4379fc1230100000000fdffffff01002d31010000000017a91421ed90762e16eaaea188aae19142e5b25bf75d2387f9070000
+          if [[ "$TRANSACTION" == "$EXPECTED_OUTPUT" ]]; then
+            echo "✅ Success: Raw Locked Transaction generation passed!"
+          else
+            echo "❌ Error: Raw Locked Transaction generation failed!"
+            exit 1
+          fi
+      
+      - name: 03.sh - Verify Raw Transaction With Data
+        run: |
+          chmod +x submission/03.sh
+          TRANSACTION=$(submission/03.sh)
+          EXPECTED_OUTPUT=0200000002160ee5dd146316bb3400ede0d4ad512ab9c1ede486ab5a119a2ee9d4379fc1230000000000fdffffff160ee5dd146316bb3400ede0d4ad512ab9c1ede486ab5a119a2ee9d4379fc1230100000000fdffffff020000000000000000156a13627472757374206275696c6465722032303235002d31010000000017a91421ed90762e16eaaea188aae19142e5b25bf75d238700000000
+          if [[ "$TRANSACTION" == "$EXPECTED_OUTPUT" ]]; then
+            echo "✅ Success: Raw Transaction With Data passed!"
+          else
+            echo "❌ Error: Raw Transaction With Data failed!"
+            exit 1
+          fi
+          
+      - name: 04.sh - Verify Locking Script
+        run: |
+          chmod +x submission/04.sh
+          SCRIPT=$(submission/04.sh)
+          EXPECTED_OUTPUT=76a914d5391484579a9760f87c9772035248325aabe01f88ac
+          if [[ "$SCRIPT" == "$EXPECTED_OUTPUT" ]]; then
+            echo "✅ Success: Locking Script verification passed!"
+          else
+            echo "❌ Error: Locking Script verification failed!"
+            exit 1
+          fi
+      
+      - name: 05.sh - Verify UnLocking Script
+        run: |
+          chmod +x submission/05.sh
+          SCRIPT=$(submission/05.sh)
+          EXPECTED_OUTPUT=47304402207883e621fb279d18902986836e89ebe77c13b39e7c9141d0c8b81274a98245d502204d3ffc75ae16b8d3e5918f078075cb2afb180828d910f0feaf090cd74d805ca4012103fdee3ce1c3ca71b5e9eb846147ff5d26f499ef2f12f84b34de46b3dcf228df55
+          if [[ "$SCRIPT" == "$EXPECTED_OUTPUT" ]]; then
+            echo "✅ Success: UnLocking Script verification passed!"
+          else
+            echo "❌ Error: UnLocking Script verification failed!"
+            exit 1
+          fi
