@@ -15,7 +15,7 @@ utxo_vout_1=$(bitcoin-cli -regtest decoderawtransaction $transaction | jq -r '.v
 utxo_txid_2=$(bitcoin-cli -regtest decoderawtransaction $transaction | jq -r '.txid')
 utxo_vout_2=$(bitcoin-cli -regtest decoderawtransaction $transaction | jq -r '.vout[1].n')
 
-locktime=2066
+locktime=2041
 
 inputs='[{"txid":"'$utxo_txid_1'","vout":'$utxo_vout_1'},{"txid":"'$utxo_txid_2'","vout":'$utxo_vout_2'}]'
 
